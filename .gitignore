@@ -3,4 +3,5 @@ __pycache__/
 *.pyc
 .env
 .idea/
-.vs/
+.vs/.pytest_cache/
+app/api.day1.backup.py
