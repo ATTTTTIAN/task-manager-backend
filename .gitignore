@@ -5,3 +5,5 @@ __pycache__/
 .idea/
 .vs/.pytest_cache/
 app/api.day1.backup.py
+
+day2_backup.sql
