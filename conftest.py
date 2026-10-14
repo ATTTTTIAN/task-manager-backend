@@ -69,3 +69,20 @@ def auth_headers(client):
     token = response.json()["access_token"]
 
     return {"Authorization": f"Bearer {token}"}
+
+from app import cache
+
+
+@pytest.fixture(autouse=True)
+def disable_real_redis(monkeypatch):
+    """自动化测试默认不连接真实 Redis。"""
+    monkeypatch.setattr(
+        cache,
+        "get_task_cache_version",
+        lambda user_id: None,
+    )
+    monkeypatch.setattr(
+        cache,
+        "invalidate_task_cache",
+        lambda user_id: None,
+    )
