@@ -58,13 +58,13 @@ def test_auth_isolation(client):
     task_id = r.json()["id"]
 
     assert len(
-        client.get("/tasks", headers=tokens["alice"]).json()
+        client.get("/tasks", headers=tokens["alice"]).json()["items"]
     ) == 1
 
     assert client.get(
         "/tasks",
         headers=tokens["bob"],
-    ).json() == []
+    ).json()["items"] == []
 
     assert client.get(
         f"/tasks/{task_id}",

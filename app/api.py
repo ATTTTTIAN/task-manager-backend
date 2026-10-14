@@ -2,7 +2,7 @@ from datetime import datetime
 from fastapi import Depends, FastAPI, HTTPException, Query, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, ConfigDict, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -40,6 +40,13 @@ class Task(BaseModel):
     description: str
     completed: bool
     created_at: datetime
+
+class TaskPage(BaseModel):
+    items: list[Task]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
 
 @app.get("/health")
 def health():
@@ -81,13 +88,60 @@ def create_task(payload: TaskCreate, db: Session = Depends(get_db), user: UserDB
     db.refresh(task)
     return task
 
-@app.get("/tasks", response_model=list[Task])
-def list_tasks(completed: bool | None = None, skip: int = Query(0, ge=0), limit: int = Query(20, ge=1, le=100), db: Session = Depends(get_db), user: UserDB = Depends(get_current_user)):
-    stmt = select(TaskDB).where(TaskDB.user_id == user.id).order_by(TaskDB.id)
+@app.get("/tasks", response_model=TaskPage)
+def list_tasks(
+    completed: bool | None = None,
+    keyword: str | None = Query(default=None, max_length=100),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=100),
+    sort_by: str = Query(default="created_at", pattern="^(created_at|id)$"),
+    sort_order: str = Query(default="desc", pattern="^(asc|desc)$"),
+    db: Session = Depends(get_db),
+    user: UserDB = Depends(get_current_user),
+):
+    # 1. 只查询当前登录用户的任务
+    stmt = select(TaskDB).where(TaskDB.user_id == user.id)
+
+    # 2. 按完成状态筛选
     if completed is not None:
         stmt = stmt.where(TaskDB.completed == completed)
-    return db.scalars(stmt.offset(skip).limit(limit)).all()
 
+    # 3. 按标题关键词搜索
+    if keyword and keyword.strip():
+        stmt = stmt.where(TaskDB.title.contains(keyword.strip()))
+
+    # 4. 统计筛选后的任务总数
+    count_stmt = select(func.count()).select_from(
+        stmt.order_by(None).subquery()
+    )
+    total = db.scalar(count_stmt) or 0
+
+    # 5. 设置排序字段
+    sort_column = (
+        TaskDB.created_at
+        if sort_by == "created_at"
+        else TaskDB.id
+    )
+
+    if sort_order == "desc":
+        stmt = stmt.order_by(sort_column.desc(), TaskDB.id.desc())
+    else:
+        stmt = stmt.order_by(sort_column.asc(), TaskDB.id.asc())
+
+    # 6. 分页查询
+    offset = (page - 1) * page_size
+    items = db.scalars(
+        stmt.offset(offset).limit(page_size)
+    ).all()
+
+    # 7. 返回分页结果
+    return TaskPage(
+        items=items,
+        total=total,
+        page=page,
+        page_size=page_size,
+        total_pages=(total + page_size - 1) // page_size,
+    )
 def own_task(db: Session, task_id: int, user_id: int):
     task = db.scalar(select(TaskDB).where(TaskDB.id == task_id, TaskDB.user_id == user_id))
     if task is None:

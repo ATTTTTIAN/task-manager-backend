@@ -25,7 +25,7 @@ def test_task_lifecycle(client, auth_headers):
         for t in client.get(
             "/tasks",
             headers=auth_headers,
-        ).json()
+        ).json()["items"]
     )
 
     r = client.patch(
@@ -41,7 +41,7 @@ def test_task_lifecycle(client, auth_headers):
         headers=auth_headers,
     )
     assert r.status_code == 200
-    assert len(r.json()) == 1
+    assert len(r.json()["items"]) == 1
 
     assert client.delete(
         f"/tasks/{task_id}",
@@ -68,7 +68,7 @@ def test_validation(client, auth_headers):
     ).status_code == 422
 
     assert client.get(
-        "/tasks?limit=101",
+        "/tasks?page_size=101",
         headers=auth_headers,
     ).status_code == 422
 
