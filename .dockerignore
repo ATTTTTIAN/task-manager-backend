@@ -8,3 +8,6 @@ __pycache__/
 *.zip
 *.log
 .idea/
+# Docker environment secrets
+.env.docker
+.env.docker.*
